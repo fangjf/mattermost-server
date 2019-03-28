@@ -4,7 +4,6 @@
 package api4
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/mattermost/mattermost-server/mlog"
@@ -1141,10 +1140,13 @@ func addChannelMember(c *Context, w http.ResponseWriter, r *http.Request) {
 	var permittedUsers []*model.User
 	if channel.GroupConstrained.Bool == true {
 		permittedUsers, err = c.App.GetUsersPermittedToChannel(channel.Id)
+		if err != nil {
+			c.Err = err
+			return
+		}
 
 		userPermitted := false
 		for _, pu := range permittedUsers {
-			fmt.Printf("pu.Username: %s\n", pu.Username)
 			if pu.Id == member.UserId {
 				userPermitted = true
 				break

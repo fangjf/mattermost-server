@@ -365,12 +365,12 @@ func addTeamMember(c *Context, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	teamMembers := []*model.TeamMember{member}
-	arrayJSON, e := json.Marshal(teamMembers)
+	arrayJSON, e := json.Marshal([]*model.TeamMember{member})
 	if e != nil {
 		c.Err = model.NewAppError("Api4.addTeamMember", "api.marshal_error", nil, e.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	r.Body = ioutil.NopCloser(bytes.NewBuffer(arrayJSON))
 
 	addTeamMembers(c, w, r)
@@ -428,6 +428,10 @@ func addTeamMembers(c *Context, w http.ResponseWriter, r *http.Request) {
 	var permittedUsers []*model.User
 	if team.GroupConstrained.Bool == true {
 		permittedUsers, err = c.App.GetUsersPermittedToTeam(team.Id)
+		if err != nil {
+			c.Err = err
+			return
+		}
 	}
 
 	var userIds []string
