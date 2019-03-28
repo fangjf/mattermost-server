@@ -354,7 +354,6 @@ func addTeamMember(c *Context, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var err *model.AppError
 	member := model.TeamMemberFromJson(r.Body)
 	if member.TeamId != c.Params.TeamId {
 		c.SetInvalidParam("team_id")
@@ -372,40 +371,9 @@ func addTeamMember(c *Context, w http.ResponseWriter, r *http.Request) {
 		c.Err = model.NewAppError("Api4.addTeamMember", "api.marshal_error", nil, e.Error(), http.StatusInternalServerError)
 		return
 	}
-	r.Body = arrayJSON
+	r.Body = ioutil.NopCloser(bytes.NewBuffer(arrayJSON))
 
-	// if member.UserId == c.App.Session.UserId {
-	// 	var team *model.Team
-	// 	team, err = c.App.GetTeam(member.TeamId)
-	// 	if err != nil {
-	// 		c.Err = err
-	// 		return
-	// 	}
-
-	// 	if team.AllowOpenInvite && !c.App.SessionHasPermissionTo(c.App.Session, model.PERMISSION_JOIN_PUBLIC_TEAMS) {
-	// 		c.SetPermissionError(model.PERMISSION_JOIN_PUBLIC_TEAMS)
-	// 		return
-	// 	}
-	// 	if !team.AllowOpenInvite && !c.App.SessionHasPermissionTo(c.App.Session, model.PERMISSION_JOIN_PRIVATE_TEAMS) {
-	// 		c.SetPermissionError(model.PERMISSION_JOIN_PRIVATE_TEAMS)
-	// 		return
-	// 	}
-	// } else {
-	// 	if !c.App.SessionHasPermissionToTeam(c.App.Session, member.TeamId, model.PERMISSION_ADD_USER_TO_TEAM) {
-	// 		c.SetPermissionError(model.PERMISSION_ADD_USER_TO_TEAM)
-	// 		return
-	// 	}
-	// }
-
-	// member, err = c.App.AddTeamMember(member.TeamId, member.UserId)
-
-	// if err != nil {
-	// 	c.Err = err
-	// 	return
-	// }
-
-	// w.WriteHeader(http.StatusCreated)
-	// w.Write([]byte(member.ToJson()))
+	addTeamMembers(c, w, r)
 }
 
 func addUserToTeamFromInvite(c *Context, w http.ResponseWriter, r *http.Request) {
