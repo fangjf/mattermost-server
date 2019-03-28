@@ -4,6 +4,7 @@
 package api4
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/mattermost/mattermost-server/mlog"
@@ -1135,6 +1136,25 @@ func addChannelMember(c *Context, w http.ResponseWriter, r *http.Request) {
 	if channel.Type == model.CHANNEL_DIRECT || channel.Type == model.CHANNEL_GROUP {
 		c.Err = model.NewAppError("addUserToChannel", "api.channel.add_user_to_channel.type.app_error", nil, "", http.StatusBadRequest)
 		return
+	}
+
+	var permittedUsers []*model.User
+	if channel.GroupConstrained.Bool == true {
+		permittedUsers, err = c.App.GetUsersPermittedToChannel(channel.Id)
+
+		userPermitted := false
+		for _, pu := range permittedUsers {
+			fmt.Printf("pu.Username: %s\n", pu.Username)
+			if pu.Id == member.UserId {
+				userPermitted = true
+				break
+			}
+		}
+
+		if !userPermitted {
+			c.Err = model.NewAppError("addChannelMember", "api.channel.add_members.user_denied", map[string]interface{}{"UserID": member.UserId}, "", http.StatusBadRequest)
+			return
+		}
 	}
 
 	cm, err := c.App.AddChannelMember(member.UserId, channel, c.App.Session.UserId, postRootId, c.App.Session.Id)

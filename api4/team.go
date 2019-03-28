@@ -6,6 +6,7 @@ package api4
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -365,38 +366,46 @@ func addTeamMember(c *Context, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if member.UserId == c.App.Session.UserId {
-		var team *model.Team
-		team, err = c.App.GetTeam(member.TeamId)
-		if err != nil {
-			c.Err = err
-			return
-		}
-
-		if team.AllowOpenInvite && !c.App.SessionHasPermissionTo(c.App.Session, model.PERMISSION_JOIN_PUBLIC_TEAMS) {
-			c.SetPermissionError(model.PERMISSION_JOIN_PUBLIC_TEAMS)
-			return
-		}
-		if !team.AllowOpenInvite && !c.App.SessionHasPermissionTo(c.App.Session, model.PERMISSION_JOIN_PRIVATE_TEAMS) {
-			c.SetPermissionError(model.PERMISSION_JOIN_PRIVATE_TEAMS)
-			return
-		}
-	} else {
-		if !c.App.SessionHasPermissionToTeam(c.App.Session, member.TeamId, model.PERMISSION_ADD_USER_TO_TEAM) {
-			c.SetPermissionError(model.PERMISSION_ADD_USER_TO_TEAM)
-			return
-		}
-	}
-
-	member, err = c.App.AddTeamMember(member.TeamId, member.UserId)
-
-	if err != nil {
-		c.Err = err
+	teamMembers := []*model.TeamMember{member}
+	arrayJSON, e := json.Marshal(teamMembers)
+	if e != nil {
+		c.Err = model.NewAppError("Api4.addTeamMember", "api.marshal_error", nil, e.Error(), http.StatusInternalServerError)
 		return
 	}
+	r.Body = arrayJSON
 
-	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(member.ToJson()))
+	// if member.UserId == c.App.Session.UserId {
+	// 	var team *model.Team
+	// 	team, err = c.App.GetTeam(member.TeamId)
+	// 	if err != nil {
+	// 		c.Err = err
+	// 		return
+	// 	}
+
+	// 	if team.AllowOpenInvite && !c.App.SessionHasPermissionTo(c.App.Session, model.PERMISSION_JOIN_PUBLIC_TEAMS) {
+	// 		c.SetPermissionError(model.PERMISSION_JOIN_PUBLIC_TEAMS)
+	// 		return
+	// 	}
+	// 	if !team.AllowOpenInvite && !c.App.SessionHasPermissionTo(c.App.Session, model.PERMISSION_JOIN_PRIVATE_TEAMS) {
+	// 		c.SetPermissionError(model.PERMISSION_JOIN_PRIVATE_TEAMS)
+	// 		return
+	// 	}
+	// } else {
+	// 	if !c.App.SessionHasPermissionToTeam(c.App.Session, member.TeamId, model.PERMISSION_ADD_USER_TO_TEAM) {
+	// 		c.SetPermissionError(model.PERMISSION_ADD_USER_TO_TEAM)
+	// 		return
+	// 	}
+	// }
+
+	// member, err = c.App.AddTeamMember(member.TeamId, member.UserId)
+
+	// if err != nil {
+	// 	c.Err = err
+	// 	return
+	// }
+
+	// w.WriteHeader(http.StatusCreated)
+	// w.Write([]byte(member.ToJson()))
 }
 
 func addUserToTeamFromInvite(c *Context, w http.ResponseWriter, r *http.Request) {
@@ -432,9 +441,25 @@ func addTeamMembers(c *Context, w http.ResponseWriter, r *http.Request) {
 	var err *model.AppError
 	members := model.TeamMembersFromJson(r.Body)
 
-	if len(members) > MAX_ADD_MEMBERS_BATCH || len(members) == 0 {
+	if len(members) > MAX_ADD_MEMBERS_BATCH {
 		c.SetInvalidParam("too many members in batch")
 		return
+	}
+
+	if len(members) == 0 {
+		c.SetInvalidParam("no members in batch")
+		return
+	}
+
+	team, err := c.App.GetTeam(c.Params.TeamId)
+	if err != nil {
+		c.Err = err
+		return
+	}
+
+	var permittedUsers []*model.User
+	if team.GroupConstrained.Bool == true {
+		permittedUsers, err = c.App.GetUsersPermittedToTeam(team.Id)
 	}
 
 	var userIds []string
@@ -447,6 +472,21 @@ func addTeamMembers(c *Context, w http.ResponseWriter, r *http.Request) {
 		if len(member.UserId) != 26 {
 			c.SetInvalidParam("user_id")
 			return
+		}
+
+		userPermitted := false
+		if team.GroupConstrained.Bool == true {
+			for _, pu := range permittedUsers {
+				if pu.Id == member.UserId {
+					userPermitted = true
+					break
+				}
+			}
+
+			if !userPermitted {
+				c.Err = model.NewAppError("addTeamMembers", "api.team.add_members.user_denied", map[string]interface{}{"UserID": member.UserId}, "", http.StatusBadRequest)
+				return
+			}
 		}
 
 		userIds = append(userIds, member.UserId)
