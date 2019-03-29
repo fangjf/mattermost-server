@@ -1138,7 +1138,7 @@ func addChannelMember(c *Context, w http.ResponseWriter, r *http.Request) {
 	}
 
 	var permittedUsers []*model.User
-	if channel.GroupConstrained.Bool == true {
+	if *channel.GroupConstrained {
 		permittedUsers, err = c.App.GetUsersPermittedToChannel(channel.Id)
 		if err != nil {
 			c.Err = err

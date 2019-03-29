@@ -426,7 +426,7 @@ func addTeamMembers(c *Context, w http.ResponseWriter, r *http.Request) {
 	}
 
 	var permittedUsers []*model.User
-	if team.GroupConstrained.Bool == true {
+	if *team.GroupConstrained {
 		permittedUsers, err = c.App.GetUsersPermittedToTeam(team.Id)
 		if err != nil {
 			c.Err = err
@@ -447,7 +447,7 @@ func addTeamMembers(c *Context, w http.ResponseWriter, r *http.Request) {
 		}
 
 		userPermitted := false
-		if team.GroupConstrained.Bool == true {
+		if *team.GroupConstrained {
 			for _, pu := range permittedUsers {
 				if pu.Id == member.UserId {
 					userPermitted = true
